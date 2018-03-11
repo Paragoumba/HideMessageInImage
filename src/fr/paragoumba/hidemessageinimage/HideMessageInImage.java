@@ -5,8 +5,6 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 
 public class HideMessageInImage {
 
@@ -52,7 +50,7 @@ public class HideMessageInImage {
 
         }
 
-        System.out.println("Message : '" + message + "' " + message.length() + "chars (" + message.length() * 16 + "bits)");
+        System.out.println("Message: '" + message + "' " + message.length() + "chars (" + message.length() * 16 + "bits)");
 
         switch (method){
 
@@ -80,29 +78,25 @@ public class HideMessageInImage {
         BufferedImage bufferedImage = ImageIO.read(image);
         Graphics2D gImage = bufferedImage.createGraphics();
         String[] control = Integer.toBinaryString(1234567).split("");
+        final int CHAR_SIZE = 8;
         int i = 0;
         int imageLength = bufferedImage.getWidth() * bufferedImage.getHeight();
-        int usablePixels = imageLength - control.length;
-        usablePixels -= usablePixels % Character.SIZE;
+        int usableChars = imageLength - control.length - 16;
+        String messageBits = "";
+        usableChars -= usableChars % CHAR_SIZE;
 
-        System.out.println("Max chars : " + usablePixels / Character.SIZE + "chars (" + usablePixels + "bits)");
+        for (byte b : message.getBytes()) messageBits += String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(" ", "0");
 
-        byte[] bits = message.getBytes();
+        messageBits += "1010101010101010";
 
-        if (bits.length > usablePixels){
+        System.out.println("Max chars: " + usableChars / CHAR_SIZE + "chars (" + usableChars + "bits)");
 
-            System.out.println("Message is too long ! " + bits.length / Character.SIZE + "/" + usablePixels / Character.SIZE + "chars (" + bits.length + "/" + usablePixels + "bits)");
+        if (messageBits.length() > usableChars){
+
+            System.out.println("Message is too long ! " + messageBits.length() / CHAR_SIZE + "/" + usableChars / CHAR_SIZE + "chars (" + messageBits.length() + "/" + usableChars + "bits)");
             return;
 
         }
-
-        System.out.print(message + ":");
-
-        for (byte b : message.getBytes(Charset.forName("UTF-" + Character.SIZE))) System.out.print(String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(" ", "0"));
-
-        System.out.println();
-
-        bits = getBits(bits, imageLength);
 
         for (int y = 0; y < bufferedImage.getHeight(); ++y){
             for (int x = 0; x < bufferedImage.getWidth(); ++x) {
@@ -124,36 +118,30 @@ public class HideMessageInImage {
 
         System.out.println("Writing control : ok");
 
-        System.out.print("bits:");
-        for (byte b : bits) System.out.print(String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(" ", "0").substring(7));
-
-        System.out.println();
-
         int x = control.length;
-        i = 0;
-
-        System.out.print("bits[i]:");
+        i = 1;
 
         for (int y = 0; y < bufferedImage.getHeight(); ++y) {
             for (; x < bufferedImage.getWidth(); ++x) {
 
                 Color color = new Color(bufferedImage.getRGB(x, y), true);
-                color = new Color(color.getRed(), color.getGreen(), color.getBlue() - color.getBlue() % 2 + bits[i], color.getAlpha());
 
-                System.out.print(bits[i]);
+                color = new Color(color.getRed(), color.getGreen(), color.getBlue() - color.getBlue() % 2 + Integer.parseInt(messageBits.substring(i - 1, i)), color.getAlpha());
 
                 gImage.setColor(color);
                 gImage.drawRect(x, y, 0, 0);
 
                 i++;
 
+                if (i > messageBits.length()) break;
+
             }
 
             x = 0;
 
-        }
+            if (i > messageBits.length()) break;
 
-        System.out.println("i:" + i + ";bits:" + bits.length);
+        }
 
         ImageIO.write(bufferedImage, image.getName().substring(image.getName().lastIndexOf(".") + 1).toUpperCase(), newImage);
         System.out.println("Writing message : ok");
@@ -163,26 +151,6 @@ public class HideMessageInImage {
     private static void hideInMeta(File image, File newImage, String message){
 
 
-
-    }
-
-    private static byte[] getBits(byte[] bytes, int length){
-
-        byte[] newBytes = new byte[length];
-
-        int i = 0;
-        
-        for (; i < bytes.length; ++i){
-
-            String[] bits = String.format("%8s", Integer.toBinaryString(bytes[i] & 0xFF)).replace(" ", "0").split("");
-
-            for (int j = 0; j < 8; ++j) newBytes[i * 8 + j] = Byte.parseByte(bits[j]);
-            
-        }
-        
-        for (; i < length; ++i) newBytes[i] = 0;
-
-        return newBytes;
 
     }
 }
